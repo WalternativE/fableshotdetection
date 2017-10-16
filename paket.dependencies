@@ -1,0 +1,25 @@
+source https://nuget.org/api/v2
+storage:none
+
+nuget FAKE
+nuget FSharp.Core redirects: force
+nuget Fable.JsonConverter
+nuget Suave
+nuget Microsoft.Extensions.Logging.Console
+nuget System.Net.NetworkInformation
+nuget Newtonsoft.Json
+
+nuget Fable.Elmish.HMR
+nuget Fable.Core
+nuget Fable.Elmish.React
+nuget Fable.Elmish.Browser
+nuget Fable.Elmish.Debugger
+
+clitool dotnet-fable
+clitool Microsoft.DotNet.Watcher.Tools
+
+group Build
+  source https://nuget.org/api/v2
+  framework >= net461
+  nuget FAKE
+  nuget Newtonsoft.Json
