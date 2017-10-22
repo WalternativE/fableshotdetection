@@ -55,7 +55,7 @@ open Elmish.HMR
 // App
 Program.mkProgram init update view
 #if DEBUG
-|> Program.withDebugger
+//|> Program.withDebugger
 |> Program.withHMR
 #endif
 |> Program.withReact "elmish-app"
