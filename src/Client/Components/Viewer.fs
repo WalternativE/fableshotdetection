@@ -2,6 +2,8 @@ module App.Components.Viewer
 
 open Elmish
 open Fable.Import.Browser
+open App
+open App.Global
 
 type Model ={ 
     selected : string 
@@ -11,6 +13,7 @@ type Model ={
 type Msg =
     | SelectVideoMsg of string
     | AnalyzerMsg of Analyzer.Msg
+    | GlobalMsg of Global.Msg
 
 let init videoOptions =
     let analyzer, analyzerCmd = Analyzer.init "player"
@@ -21,11 +24,18 @@ let init videoOptions =
 let update msg model =
     match msg with
     | SelectVideoMsg vidUrl -> { model with selected = vidUrl }, Cmd.none
+    | GlobalMsg msg ->
+        match msg with
+        | Tick dt ->
+            let msg = Analyzer.GlobalMsg (Tick dt)
+            let a, aCmd = Analyzer.update msg model.analyzer
+            { model with analyzer = a }, aCmd |> Cmd.map AnalyzerMsg
     | AnalyzerMsg msg ->
         match msg with
-        | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.UpdateFrameMsg ->
+        | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg ->
             let aMod, aCmd = Analyzer.update msg model.analyzer
             { model with analyzer = aMod }, aCmd |> Cmd.map AnalyzerMsg
+        | Analyzer.GlobalMsg _ -> model, Cmd.none // already handled this - no change
 
 module R = Fable.Helpers.React
 
