@@ -2,21 +2,30 @@ module App.Components.Viewer
 
 open Elmish
 open Fable.Import.Browser
-open Fable.Import
 
 type Model ={ 
     selected : string 
-    options : string list }
+    options : string list
+    analyzer : Analyzer.Model }
 
 type Msg =
     | SelectVideoMsg of string
+    | AnalyzerMsg of Analyzer.Msg
 
 let init videoOptions =
-    { options = videoOptions; selected = List.head videoOptions }, Cmd.none
+    let analyzer, analyzerCmd = Analyzer.init "player"
+    { options = videoOptions
+      selected = List.head videoOptions
+      analyzer = analyzer }, analyzerCmd
 
 let update msg model =
     match msg with
-    | SelectVideoMsg vidUrl -> model, Cmd.none
+    | SelectVideoMsg vidUrl -> { model with selected = vidUrl }, Cmd.none
+    | AnalyzerMsg msg ->
+        match msg with
+        | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.UpdateFrameMsg ->
+            let aMod, aCmd = Analyzer.update msg model.analyzer
+            { model with analyzer = aMod }, aCmd |> Cmd.map AnalyzerMsg
 
 module R = Fable.Helpers.React
 
@@ -38,7 +47,11 @@ let view model (dispatch: Msg -> unit) =
         R.h1 [] [R.str "Video viewer"]
         videoSelect model dispatch
         R.video [
+            R.Props.Id "player"
             R.Props.Controls true
             R.Props.Src model.selected 
-            R.Props.Width "30%" ] []
+            R.Props.Width "30%"
+            R.Props.OnPlay (fun _ -> AnalyzerMsg Analyzer.StartVideoMsg |> dispatch)
+            R.Props.OnPause (fun _ -> AnalyzerMsg Analyzer.StopVideoMsg |> dispatch) ] []
+        Analyzer.view model.analyzer dispatch
     ]

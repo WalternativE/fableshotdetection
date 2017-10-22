@@ -1,17 +1,13 @@
 module App.View
 
 open Elmish
-open Elmish.Browser.Navigation
-open Elmish.Browser.UrlParser
 open Elmish.React.Common
 open Fable.Core
 open Fable.Core.JsInterop
-open Fable.Import
-open Fable.Import.Browser
 open App.Components
 
-JsInterop.importSideEffects "whatwg-fetch"
-JsInterop.importSideEffects "babel-polyfill"
+importSideEffects "whatwg-fetch"
+importSideEffects "babel-polyfill"
 
 importAll "./sass/main.sass"
 
@@ -30,7 +26,7 @@ type Model = {
   }
 
 let init result =
-  let viewer, viewerCmd = Components.Viewer.init videoChoices
+  let viewer, viewerCmd = Viewer.init videoChoices
   { viewer = viewer }, Cmd.batch [Cmd.ofMsg InitMsg; viewerCmd]
 
 let update msg model =
@@ -39,8 +35,11 @@ let update msg model =
   | ViewerMsg msg ->
       match msg with
       | Viewer.SelectVideoMsg videoUrl ->
-        let (viewer, viewerCmd) = Viewer.update msg { model.viewer with selected = videoUrl }
-        {model with viewer = viewer}, viewerCmd
+          let viewer, viewerCmd = Viewer.update msg { model.viewer with selected = videoUrl }
+          { model with viewer = viewer }, viewerCmd |> Cmd.map ViewerMsg
+      | Viewer.AnalyzerMsg _ ->
+          let v, vCmd = Viewer.update msg model.viewer
+          { model with viewer = v }, vCmd |> Cmd.map ViewerMsg
 
 module R = Fable.Helpers.React
 

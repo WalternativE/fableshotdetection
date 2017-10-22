@@ -3,6 +3,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Components/Analyzer.fs" />
     <Compile Include="Components/Viewer.fs" />
     <Compile Include="App.fs" />
   </ItemGroup>
