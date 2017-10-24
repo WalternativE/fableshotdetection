@@ -16,8 +16,8 @@ importAll "./sass/main.sass"
 
 //hardcoded until better idea
 let videoChoices = [
-  "/videos/It2017.mp4"
   "/videos/bigbuckbunny.mp4"
+  "/videos/It2017.mp4"
   "/videos/trailer_hd.mp4" ]
 
 type Msg =

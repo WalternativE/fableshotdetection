@@ -1,11 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Library</OutputType>
-    <TargetFramework>net461</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Server.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
+  <Target Name="RunServer">
+    <Exec Command="dotnet run" WorkingDirectory=".\" />
+  </Target>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

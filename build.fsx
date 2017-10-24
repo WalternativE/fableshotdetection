@@ -6,12 +6,8 @@
 #r @"packages/build/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
 
 open Fake
-open Fake.Git
-open Fake.AssemblyInfoFile
-open Fake.ReleaseNotesHelper
 open System
 open System.IO
-open Fake.Testing.Expecto
 
 let project = "Suave/Fable sample"
 
@@ -25,7 +21,6 @@ let clientPath = "./src/Client" |> FullName
 
 let serverPath = "./src/Server/" |> FullName
 
-open Newtonsoft.Json
 open Newtonsoft.Json.Linq
 
 let dotnetcliVersion : string = 
@@ -50,7 +45,6 @@ let dockerImageName = getBuildParam "DockerImageName"
 // --------------------------------------------------------------------------------------
 // END TODO: The rest of the file includes standard build steps
 // --------------------------------------------------------------------------------------
-
 
 let run' timeout cmd args dir =
     if execProcess (fun info ->
@@ -78,7 +72,6 @@ let platformTool tool winTool =
     |> function Some t -> t | _ -> failwithf "%s not found" tool
 
 let nodeTool = platformTool "node" "node.exe"
-let npmTool = platformTool "npm" "npm.cmd"
 let yarnTool = platformTool "yarn" "yarn.cmd"
 
 do if not isWindows then
@@ -89,29 +82,14 @@ do if not isWindows then
     setEnvironVar "FrameworkPathOverride" frameworkPath
 
 
-// Read additional information from the release notes document
-let releaseNotes = File.ReadAllLines "RELEASE_NOTES.md"
-
-let releaseNotesData =
-    releaseNotes
-    |> parseAllReleaseNotes
-
-let release = List.head releaseNotesData
-
-let packageVersion = SemVerHelper.parse release.NugetVersion
-
-
 // --------------------------------------------------------------------------------------
 // Clean build results
 
 Target "Clean" (fun _ ->
     !!"src/**/bin"
     ++ "test/**/bin"
+    ++ "src/**/obj"
     |> CleanDirs
-
-    !! "src/**/obj/*.nuspec"
-    ++ "test/**/obj/*.nuspec"
-    |> DeleteFiles
 
     CleanDirs ["bin"; "temp"; "docs/output"; deployDir; Path.Combine(clientPath,"public/bundle")]
 )
@@ -121,7 +99,7 @@ Target "InstallDotNetCore" (fun _ ->
 )
 
 // --------------------------------------------------------------------------------------
-// Build library & test project
+// Build library
 
 
 Target "BuildServer" (fun _ ->
@@ -153,16 +131,25 @@ FinalTarget "KillProcess" (fun _ ->
     killProcess "dotnet.exe"
 )
 
-
 Target "Run" (fun _ ->
     runDotnet clientPath "restore"
+    runDotnet serverPath "restore"
+
+    let unitTestsWatch = async {
+        let result =
+            ExecProcess (fun info ->
+                info.FileName <- dotnetExePath
+                info.WorkingDirectory <- serverPath
+                info.Arguments <- "watch msbuild /t:RunServer") TimeSpan.MaxValue
+
+        if result <> 0 then failwith "Website shut down." }
 
     let fablewatch = async { runDotnet clientPath "fable webpack-dev-server" }
     let openBrowser = async {
         System.Threading.Thread.Sleep(5000)
         Diagnostics.Process.Start("http://"+ ipAddress + sprintf ":%d" port) |> ignore }
 
-    Async.Parallel [| fablewatch; openBrowser |]
+    Async.Parallel [| unitTestsWatch; fablewatch; openBrowser |]
     |> Async.RunSynchronously
     |> ignore
 )
@@ -170,18 +157,6 @@ Target "Run" (fun _ ->
 
 // --------------------------------------------------------------------------------------
 // Release Scripts
-
-Target "SetReleaseNotes" (fun _ ->
-    let lines = [
-            "module internal ReleaseNotes"
-            ""
-            (sprintf "let Version = \"%s\"" release.NugetVersion)
-            ""
-            (sprintf "let IsPrerelease = %b" (release.SemVer.PreRelease <> None))
-            ""
-            "let Notes = \"\"\""] @ Array.toList releaseNotes @ ["\"\"\""]
-    File.WriteAllLines("src/Client/ReleaseNotes.fs",lines)
-)
 
 Target "BundleClient" (fun _ ->
     let result =
@@ -194,13 +169,30 @@ Target "BundleClient" (fun _ ->
     let clientDir = deployDir </> "client"
     let publicDir = clientDir </> "public"
     let jsDir = clientDir </> "js"
-    let imageDir = clientDir </> "Images"
+    let imageDir = clientDir </> "images"
+    let videoDir = clientDir </> "videos"
 
     !! "src/Client/public/**/*.*" |> CopyFiles publicDir
     !! "src/Client/js/**/*.*" |> CopyFiles jsDir
-    !! "src/Client/Images/**/*.*" |> CopyFiles imageDir
+    !! "src/Client/images/**/*.*" |> CopyFiles imageDir
+    !! "src/Client/videos/**/*.*" |> CopyFiles videoDir
 
     "src/Client/index.html" |> CopyFile clientDir
+)
+
+// this is problematic on *nix systems if you can't run docker as a non-root user
+// just let your console fingers swing for this step
+Target "CreateDockerImage" (fun _ ->
+    if String.IsNullOrEmpty dockerUser then
+        failwithf "docker username not given."
+    if String.IsNullOrEmpty dockerImageName then
+        failwithf "docker image Name not given."
+    let result =
+        ExecProcess (fun info ->
+            info.FileName <- "docker"
+            info.UseShellExecute <- false
+            info.Arguments <- sprintf "build -t %s/%s ." dockerUser dockerImageName) TimeSpan.MaxValue
+    if result <> 0 then failwith "Docker build failed"
 )
 
 // -------------------------------------------------------------------------------------
@@ -210,10 +202,10 @@ Target "All" DoNothing
 "Clean"
   ==> "InstallDotNetCore"
   ==> "InstallClient"
-  ==> "SetReleaseNotes"
   ==> "BuildServer"
   ==> "BuildClient"
   ==> "BundleClient"
+  ==> "CreateDockerImage"
   ==> "All"
 
 "BuildClient"
