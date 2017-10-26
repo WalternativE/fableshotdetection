@@ -56,7 +56,6 @@ let videoSelect model (dispatch: Msg -> unit) =
 
 let view model (dispatch: Msg -> unit) =
     R.div [] [
-        R.h1 [] [R.str "Video viewer"]
         videoSelect model dispatch
         R.video [
             R.Props.Id model.videoId

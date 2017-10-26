@@ -32,7 +32,6 @@ let update msg model =
       | Analyzer.ShotDetectedMsg imageUri ->
           let shotId = Guid.NewGuid() |> string
           let newShot = { id = shotId; imageUri = imageUri |> Option.defaultValue "" }
-          Browser.console.log  (sprintf "Shot detected - shot id is %s" shotId)
           { model with shots = newShot::model.shots }, Cmd.none
       | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.GlobalMsg _ -> model, Cmd.none
 

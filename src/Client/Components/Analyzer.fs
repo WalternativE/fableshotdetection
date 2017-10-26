@@ -1,5 +1,6 @@
 module App.Components.Analyzer
 
+open System
 open Elmish
 open Fable.Core
 open Fable.Import
@@ -13,7 +14,7 @@ type Model = {
     isAnalyzing : bool
     videoWidth : float
     videoHeight : float
-    lastShotHist : int []
+    lastShotHist : int list
 }
 
 type Msg =
@@ -29,7 +30,7 @@ let init videoId =
       isAnalyzing = false
       videoWidth = 0.
       videoHeight = 0.
-      lastShotHist = [||] }, Cmd.none
+      lastShotHist = [] }, Cmd.none
 
 let extractDrawingContext id =
     let el = (Browser.document.getElementById id) :?> Browser.HTMLCanvasElement
@@ -93,11 +94,23 @@ let drawOnCanvas = function
 
 let processFrame = drawOnBacking >> computeHistogram >> drawOnCanvas
 
+let computeTotalLuma (hist : int list) =
+    let rec start hist accVal index =
+        match hist with
+        | [] -> accVal
+        | curVal::rest -> start rest (accVal + curVal * index) (index + 1)
+
+    start hist 0 0
+
+let computeDifference oldHist newHist =
+    Math.Abs (computeTotalLuma oldHist - computeTotalLuma newHist)
+
 let detectShot model currentHist =
     // TODO implement all the logic
-    let random = System.Random()
-    let nr = random.Next(10)
-    if nr = 3 then
+    let difference =
+        computeDifference model.lastShotHist currentHist
+
+    if difference > 1658926 then
         let img =
             model.backingContext
             |> Option.map (fun ctx -> (ctx.canvas.toDataURL("image/png")))
@@ -127,8 +140,8 @@ let update msg model =
         match msg with
         | Tick dt ->
             if model.isAnalyzing then
-                let hist = (processFrame model) |> Option.defaultValue [||]
-                let cmd = detectShot model hist
+                let hist = (processFrame model) |> Option.defaultValue [||] |> List.ofArray
+                let cmd = hist |> detectShot model
                 { model with lastShotHist = hist }, cmd
             else
                 model, Cmd.none
