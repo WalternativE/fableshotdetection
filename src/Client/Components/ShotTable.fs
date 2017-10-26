@@ -6,9 +6,11 @@ open Fable.Import
 
 type Shot = {
   id : string
+  imageUri : string
 }
 
 type Model = {
+  videoId : string
   shots : Shot list
 }
 
@@ -17,16 +19,19 @@ type Msg =
 
 module R = Fable.Helpers.React
 
-let init () =
-  { shots = [] }, Cmd.none
+let init videoId =
+  { videoId = videoId; shots = [] }, Cmd.none
+
+let createShotThumb model currentShot =
+  ()
 
 let update msg model =
   match msg with
   | AnalyzerMsg analyzerMsg ->
       match analyzerMsg with
-      | Analyzer.ShotDetectedMsg ->
+      | Analyzer.ShotDetectedMsg imageUri ->
           let shotId = Guid.NewGuid() |> string
-          let newShot = { id = shotId }
+          let newShot = { id = shotId; imageUri = imageUri |> Option.defaultValue "" }
           Browser.console.log  (sprintf "Shot detected - shot id is %s" shotId)
           { model with shots = newShot::model.shots }, Cmd.none
       | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.GlobalMsg _ -> model, Cmd.none
@@ -34,7 +39,8 @@ let update msg model =
 let renderShots model =
   R.div [] [
     yield! model.shots
-    |> Seq.map (fun shot -> R.div [] [ R.span [] [ R.str shot.id ] ])
+    |> Seq.map (fun shot ->
+          R.img [ R.Props.Id shot.id; R.Props.Src shot.imageUri ] )
   ]
 
 let view model dispatch =

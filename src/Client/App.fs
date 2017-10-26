@@ -40,8 +40,9 @@ let ticker dispatch =
 let subscription _ = Cmd.ofSub ticker
 
 let init result =
-  let viewer, viewerCmd = Viewer.init videoChoices
-  let shotTable, stCmd = ShotTable.init ()
+  let videoId = "player"
+  let viewer, viewerCmd = Viewer.init videoId videoChoices
+  let shotTable, stCmd = ShotTable.init videoId
   { viewer = viewer; shotTable = shotTable }, Cmd.batch [Cmd.ofMsg InitMsg; viewerCmd; stCmd]
 
 let update msg model =
@@ -63,7 +64,7 @@ let update msg model =
           | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.GlobalMsg _ ->
               let v, vCmd = Viewer.update msg model.viewer
               { model with viewer = v }, vCmd |> Cmd.map ViewerMsg
-          | Analyzer.ShotDetectedMsg ->
+          | Analyzer.ShotDetectedMsg _ ->
               let v, vCmd = Viewer.update msg model.viewer
               let st, stCmd = ShotTable.update (ShotTable.AnalyzerMsg analyzerMsg) model.shotTable
               { model with viewer =v; shotTable = st },

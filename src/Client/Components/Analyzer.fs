@@ -19,7 +19,7 @@ type Model = {
 type Msg =
     | StartVideoMsg
     | StopVideoMsg
-    | ShotDetectedMsg
+    | ShotDetectedMsg of string option
     | GlobalMsg of Global.Msg
 
 let init videoId =
@@ -98,7 +98,10 @@ let detectShot model currentHist =
     let random = System.Random()
     let nr = random.Next(10)
     if nr = 3 then
-        Cmd.ofMsg ShotDetectedMsg
+        let img =
+            model.backingContext
+            |> Option.map (fun ctx -> (ctx.canvas.toDataURL("image/png")))
+        Cmd.ofMsg (ShotDetectedMsg img)
     else
         Cmd.none
 
@@ -118,7 +121,7 @@ let update msg model =
     | StopVideoMsg ->
         Browser.console.log "Stopping video"
         { model with isAnalyzing = false }, Cmd.none
-    | ShotDetectedMsg ->
+    | ShotDetectedMsg _ ->
         model, Cmd.none
     | GlobalMsg msg ->
         match msg with

@@ -5,7 +5,8 @@ open Fable.Import.Browser
 open App
 open App.Global
 
-type Model ={ 
+type Model ={
+    videoId : string
     selected : string 
     options : string list
     analyzer : Analyzer.Model }
@@ -15,9 +16,10 @@ type Msg =
     | AnalyzerMsg of Analyzer.Msg
     | GlobalMsg of Global.Msg
 
-let init videoOptions =
-    let analyzer, analyzerCmd = Analyzer.init "player"
-    { options = videoOptions
+let init videoId videoOptions =
+    let analyzer, analyzerCmd = Analyzer.init videoId
+    { videoId = videoId
+      options = videoOptions
       selected = List.head videoOptions
       analyzer = analyzer }, analyzerCmd
 
@@ -32,7 +34,7 @@ let update msg model =
             { model with analyzer = a }, aCmd |> Cmd.map AnalyzerMsg
     | AnalyzerMsg msg ->
         match msg with
-        | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.ShotDetectedMsg ->
+        | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.ShotDetectedMsg _ ->
             let aMod, aCmd = Analyzer.update msg model.analyzer
             { model with analyzer = aMod }, aCmd |> Cmd.map AnalyzerMsg
         | Analyzer.GlobalMsg _ -> model, Cmd.none // already handled this - no change
@@ -57,7 +59,7 @@ let view model (dispatch: Msg -> unit) =
         R.h1 [] [R.str "Video viewer"]
         videoSelect model dispatch
         R.video [
-            R.Props.Id "player"
+            R.Props.Id model.videoId
             R.Props.Controls true
             R.Props.Src model.selected 
             R.Props.Width "30%"
