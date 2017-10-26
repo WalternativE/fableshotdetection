@@ -27,7 +27,7 @@ let update msg model =
           let shotId = Guid.NewGuid() |> string
           let newShot = { id = shotId; imageUri = imageUri |> Option.defaultValue "" }
           { model with shots = newShot::model.shots }, Cmd.none
-      | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.GlobalMsg _ -> model, Cmd.none
+      | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.ThreshUpdatedMsg _ | Analyzer.GlobalMsg _ -> model, Cmd.none
 
 module R = Fable.Helpers.React
 

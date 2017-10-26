@@ -13,6 +13,7 @@ type Model ={
 
 type Msg =
     | SelectVideoMsg of string
+    | ResetVideoMsg
     | AnalyzerMsg of Analyzer.Msg
     | GlobalMsg of Global.Msg
 
@@ -25,7 +26,10 @@ let init videoId videoOptions =
 
 let update msg model =
     match msg with
-    | SelectVideoMsg vidUrl -> { model with selected = vidUrl }, Cmd.none
+    | SelectVideoMsg vidUrl -> { model with selected = vidUrl }, Cmd.ofMsg ResetVideoMsg
+    | ResetVideoMsg ->
+        let a, aCmd = Analyzer.init model.videoId
+        { model with analyzer = a }, aCmd
     | GlobalMsg msg ->
         match msg with
         | Tick dt ->
@@ -34,7 +38,7 @@ let update msg model =
             { model with analyzer = a }, aCmd |> Cmd.map AnalyzerMsg
     | AnalyzerMsg msg ->
         match msg with
-        | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.ShotDetectedMsg _ ->
+        | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.ThreshUpdatedMsg _ | Analyzer.ShotDetectedMsg _ ->
             let aMod, aCmd = Analyzer.update msg model.analyzer
             { model with analyzer = aMod }, aCmd |> Cmd.map AnalyzerMsg
         | Analyzer.GlobalMsg _ -> model, Cmd.none // already handled this - no change
@@ -64,5 +68,5 @@ let view model (dispatch: Msg -> unit) =
             R.Props.Width "30%"
             R.Props.OnPlay (fun _ -> AnalyzerMsg Analyzer.StartVideoMsg |> dispatch)
             R.Props.OnPause (fun _ -> AnalyzerMsg Analyzer.StopVideoMsg |> dispatch) ] []
-        Analyzer.view model.analyzer dispatch
+        Analyzer.view model.analyzer (AnalyzerMsg >> dispatch)
     ]

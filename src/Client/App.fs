@@ -59,9 +59,13 @@ let update msg model =
       | Viewer.SelectVideoMsg videoUrl ->
           let viewer, viewerCmd = Viewer.update msg { model.viewer with selected = videoUrl }
           { model with viewer = viewer }, viewerCmd |> Cmd.map ViewerMsg
+      | Viewer.ResetVideoMsg ->
+          let v, vCmd = Viewer.update msg model.viewer
+          let s, sCmd = ShotTable.init model.viewer.videoId
+          { model with viewer = v; shotTable = s }, Cmd.batch [ sCmd; vCmd |> Cmd.map ViewerMsg ]
       | Viewer.AnalyzerMsg analyzerMsg ->
           match analyzerMsg with
-          | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.GlobalMsg _ ->
+          | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.ThreshUpdatedMsg _ | Analyzer.GlobalMsg _ ->
               let v, vCmd = Viewer.update msg model.viewer
               { model with viewer = v }, vCmd |> Cmd.map ViewerMsg
           | Analyzer.ShotDetectedMsg _ ->

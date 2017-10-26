@@ -17,12 +17,19 @@ type Model = {
     videoHeight : float
     lastShotHist : int list
     visBuffer : int list
+    cutThresh : int
+    fadeThresh : int
 }
+
+type Thresh =
+    | CutThresh of int
+    | FadeThresh of int
 
 type Msg =
     | StartVideoMsg
     | StopVideoMsg
     | ShotDetectedMsg of string option
+    | ThreshUpdatedMsg of Thresh
     | GlobalMsg of Global.Msg
 
 let init videoId =
@@ -34,7 +41,9 @@ let init videoId =
       videoWidth = 0.
       videoHeight = 0.
       lastShotHist = []
-      visBuffer = [] }, Cmd.none
+      visBuffer = []
+      cutThresh = Math.Floor (float TMAX / 3.) |> int
+      fadeThresh = Math.Floor (float TMAX / 6.) |> int }, Cmd.none
 
 let extractDrawingContext id =
     let el = (Browser.document.getElementById id) :?> Browser.HTMLCanvasElement
@@ -114,7 +123,7 @@ let detectShot model currentHist =
     let difference =
         computeDifference model.lastShotHist currentHist
 
-    if difference > 1658926 then
+    if difference > model.cutThresh then
         let img =
             model.backingContext
             |> Option.map (fun ctx -> (ctx.canvas.toDataURL("image/png")))
@@ -146,7 +155,14 @@ let drawVisBuffer model =
         
         ctx.clearRect(0., 0., 256., 100.)
         ctx.beginPath ()
-        draw model.visBuffer 255 )
+        draw model.visBuffer 255
+
+        let cutThreshPos = clamp (float model.cutThresh * scalingFactor) 0. 100.
+        ctx.moveTo(0., 100. - float cutThreshPos)
+        ctx.lineTo(255., 100. - float cutThreshPos)
+        ctx.stroke()
+
+        ctx.closePath () )
     model
 
 let visualizeDifferences difference = processVisBuffer difference >> drawVisBuffer
@@ -171,6 +187,10 @@ let update msg model =
         { model with isAnalyzing = false }, Cmd.none
     | ShotDetectedMsg _ ->
         model, Cmd.none
+    | ThreshUpdatedMsg thresh ->
+        match thresh with
+        | CutThresh v -> { model with cutThresh = v }, Cmd.none
+        | FadeThresh v -> { model with fadeThresh = v }, Cmd.none
     | GlobalMsg msg ->
         match msg with
         | Tick dt ->
@@ -182,28 +202,44 @@ let update msg model =
             else
                 model, Cmd.none
 
+let onThreshChange (e : React.FormEvent) dispatch =
+    let threshSlider = e.currentTarget :?> Browser.HTMLInputElement
+    let (isSuccess, value) = threshSlider.value |> Int32.TryParse
+    if isSuccess then ThreshUpdatedMsg (CutThresh value) |> dispatch else ()
+
 module R = Fable.Helpers.React
 
 let view model dispatch =
     R.div [ R.Props.Style [R.Props.Display "inline-block"] ] [
-        R.canvas [
+        R.div [] [
+            R.label [ R.Props.HtmlFor "cut-thresh-slider" ] [ R.str (sprintf "CutThresh at %i" model.cutThresh) ]
+            R.input [
+                R.Props.Id "cut-thresh-slider"
+                R.Props.Type "range"
+                R.Props.Min 1
+                R.Props.Max TMAX
+                R.Props.Value (string model.cutThresh)
+                R.Props.OnChange (fun e -> onThreshChange e dispatch )
+            ]
+        ]
+        R.div [] [
+            R.canvas [
                 R.Props.Id "canvas-backing"
                 R.Props.Width model.videoWidth
                 R.Props.Height model.videoHeight
-                R.Props.Hidden true ] [
-            R.div [] [ R.str "Canvas not supported" ]
+                R.Props.Hidden true 
+            ] [ R.div [] [ R.str "Canvas not supported" ] ]
+            R.canvas [
+                R.Props.Id "canvas-hist"
+                R.Props.Width "256px"
+                R.Props.Height "100px"
+                R.Props.Style [R.Props.MarginLeft "10px"]
+            ] [ R.div [] [ R.str "Canvas not supported" ] ]
+            R.canvas [
+                R.Props.Id "canvas-visualizer"
+                R.Props.Width "256px"
+                R.Props.Height "100px"
+                R.Props.Style [R.Props.MarginLeft "10px"]
+            ] [ R.div [] [ R.str "Canvas not supported"] ]
         ]
-        R.canvas [
-            R.Props.Id "canvas-hist"
-            R.Props.Width "256px"
-            R.Props.Height "100px"
-            R.Props.Style [R.Props.MarginLeft "10px"] ] [
-            R.div [] [ R.str "Canvas not supported" ]
-        ]
-        R.canvas [
-            R.Props.Id "canvas-visualizer"
-            R.Props.Width "256px"
-            R.Props.Height "100px"
-            R.Props.Style [R.Props.MarginLeft "10px"]
-        ] [ R.div [] [ R.str "Canvas not supported"] ]
     ]
