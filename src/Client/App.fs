@@ -2,7 +2,6 @@ module App.View
 
 open System
 open Elmish
-open Elmish.React.Common
 open Fable.Core
 open Fable.Core.JsInterop
 open Fable.Import.Browser
@@ -27,6 +26,7 @@ type Msg =
 
 type Model = {
     viewer : Viewer.Model
+    shotTable : ShotTable.Model
   }
 
 // as we have timing problems in this app we need a global clock
@@ -41,7 +41,8 @@ let subscription _ = Cmd.ofSub ticker
 
 let init result =
   let viewer, viewerCmd = Viewer.init videoChoices
-  { viewer = viewer }, Cmd.batch [Cmd.ofMsg InitMsg; viewerCmd]
+  let shotTable, stCmd = ShotTable.init ()
+  { viewer = viewer; shotTable = shotTable }, Cmd.batch [Cmd.ofMsg InitMsg; viewerCmd; stCmd]
 
 let update msg model =
   match msg with
@@ -57,16 +58,24 @@ let update msg model =
       | Viewer.SelectVideoMsg videoUrl ->
           let viewer, viewerCmd = Viewer.update msg { model.viewer with selected = videoUrl }
           { model with viewer = viewer }, viewerCmd |> Cmd.map ViewerMsg
-      | Viewer.AnalyzerMsg _ ->
-          let v, vCmd = Viewer.update msg model.viewer
-          { model with viewer = v }, vCmd |> Cmd.map ViewerMsg
+      | Viewer.AnalyzerMsg analyzerMsg ->
+          match analyzerMsg with
+          | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.GlobalMsg _ ->
+              let v, vCmd = Viewer.update msg model.viewer
+              { model with viewer = v }, vCmd |> Cmd.map ViewerMsg
+          | Analyzer.ShotDetectedMsg ->
+              let v, vCmd = Viewer.update msg model.viewer
+              let st, stCmd = ShotTable.update (ShotTable.AnalyzerMsg analyzerMsg) model.shotTable
+              { model with viewer =v; shotTable = st },
+              Cmd.batch [vCmd |> Cmd.map ViewerMsg; stCmd] // TODO wire the shot to the shot table
       | Viewer.GlobalMsg _ -> model, Cmd.none // I already handle this once - no state change
 
 module R = Fable.Helpers.React
 
 let view model dispatch =
   R.div [] [
-    lazyView2 Viewer.view model.viewer (ViewerMsg >> dispatch)
+    Viewer.view model.viewer (ViewerMsg >> dispatch)
+    ShotTable.view model.shotTable dispatch
   ]
 
 open Elmish.React

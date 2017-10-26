@@ -32,7 +32,7 @@ let update msg model =
             { model with analyzer = a }, aCmd |> Cmd.map AnalyzerMsg
     | AnalyzerMsg msg ->
         match msg with
-        | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg ->
+        | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.ShotDetectedMsg ->
             let aMod, aCmd = Analyzer.update msg model.analyzer
             { model with analyzer = aMod }, aCmd |> Cmd.map AnalyzerMsg
         | Analyzer.GlobalMsg _ -> model, Cmd.none // already handled this - no change

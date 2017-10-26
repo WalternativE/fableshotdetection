@@ -4,9 +4,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Global.fs" />
-    <Compile Include="Components/ShotTable.fs" />
     <Compile Include="Components/Analyzer.fs" />
     <Compile Include="Components/Viewer.fs" />
+    <Compile Include="Components/ShotTable.fs" />
     <Compile Include="App.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />

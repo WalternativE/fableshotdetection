@@ -13,11 +13,13 @@ type Model = {
     isAnalyzing : bool
     videoWidth : float
     videoHeight : float
+    lastShotHist : int []
 }
 
 type Msg =
     | StartVideoMsg
     | StopVideoMsg
+    | ShotDetectedMsg
     | GlobalMsg of Global.Msg
 
 let init videoId =
@@ -26,7 +28,8 @@ let init videoId =
       histContext = None
       isAnalyzing = false
       videoWidth = 0.
-      videoHeight = 0. }, Cmd.none
+      videoHeight = 0.
+      lastShotHist = [||] }, Cmd.none
 
 let extractDrawingContext id =
     let el = (Browser.document.getElementById id) :?> Browser.HTMLCanvasElement
@@ -84,10 +87,20 @@ let drawOnCanvas = function
                 ctx.lineTo (float bucket, 100. - (float v))
                 ctx.stroke ()
             ctx.closePath ()
-        | None -> ()
-    | None -> ()
+            Some hist
+        | None -> None
+    | None -> None
 
 let processFrame = drawOnBacking >> computeHistogram >> drawOnCanvas
+
+let detectShot model currentHist =
+    // TODO implement all the logic
+    let random = System.Random()
+    let nr = random.Next(10)
+    if nr = 3 then
+        Cmd.ofMsg ShotDetectedMsg
+    else
+        Cmd.none
 
 let update msg model =
     match msg with
@@ -105,12 +118,15 @@ let update msg model =
     | StopVideoMsg ->
         Browser.console.log "Stopping video"
         { model with isAnalyzing = false }, Cmd.none
+    | ShotDetectedMsg ->
+        model, Cmd.none
     | GlobalMsg msg ->
         match msg with
         | Tick dt ->
             if model.isAnalyzing then
-                processFrame model
-                model, Cmd.none
+                let hist = (processFrame model) |> Option.defaultValue [||]
+                let cmd = detectShot model hist
+                { model with lastShotHist = hist }, cmd
             else
                 model, Cmd.none
 
