@@ -11,10 +11,12 @@ type Model = {
     videoId : string
     backingContext : Browser.CanvasRenderingContext2D option
     histContext : Browser.CanvasRenderingContext2D option
+    visualizerContext : Browser.CanvasRenderingContext2D option
     isAnalyzing : bool
     videoWidth : float
     videoHeight : float
     lastShotHist : int list
+    visBuffer : int list
 }
 
 type Msg =
@@ -27,10 +29,12 @@ let init videoId =
     { videoId = videoId
       backingContext = None
       histContext = None
+      visualizerContext = None
       isAnalyzing = false
       videoWidth = 0.
       videoHeight = 0.
-      lastShotHist = [] }, Cmd.none
+      lastShotHist = []
+      visBuffer = [] }, Cmd.none
 
 let extractDrawingContext id =
     let el = (Browser.document.getElementById id) :?> Browser.HTMLCanvasElement
@@ -114,9 +118,38 @@ let detectShot model currentHist =
         let img =
             model.backingContext
             |> Option.map (fun ctx -> (ctx.canvas.toDataURL("image/png")))
-        Cmd.ofMsg (ShotDetectedMsg img)
+        difference, Cmd.ofMsg (ShotDetectedMsg img)
     else
-        Cmd.none
+        difference, Cmd.none
+
+let processVisBuffer model difference =
+    if List.length model.visBuffer < 256 then
+        { model with visBuffer = difference::model.visBuffer }
+    else
+        let head = model.visBuffer |> List.take 255
+        { model with visBuffer = difference::head }
+
+let drawVisBuffer model =
+    model.visualizerContext
+    |> Option.iter (fun ctx ->
+        let scalingFactor = 100. / float TMAX
+
+        let rec draw toDraw pos =
+            match toDraw with
+            | [] -> ()
+            | x::rest ->
+                let v = clamp (float x * scalingFactor) 0. 100.
+                ctx.moveTo(float pos, 100.)
+                ctx.lineTo(float pos, 100. - float v)
+                ctx.stroke()
+                pos - 1 |> draw rest
+        
+        ctx.clearRect(0., 0., 256., 100.)
+        ctx.beginPath ()
+        draw model.visBuffer 255 )
+    model
+
+let visualizeDifferences difference = processVisBuffer difference >> drawVisBuffer
 
 let update msg model =
     match msg with
@@ -124,10 +157,12 @@ let update msg model =
         Browser.console.log "Starting video"
         let backingContext = extractDrawingContext "canvas-backing"
         let histContext = extractDrawingContext "canvas-hist"
+        let visualizerContext = extractDrawingContext "canvas-visualizer"
         let width, height = getVideoMeasurments model.videoId
         { model with
               backingContext = Some backingContext
               histContext = Some histContext
+              visualizerContext = Some visualizerContext
               isAnalyzing = true
               videoWidth = width
               videoHeight = height } , Cmd.none
@@ -141,8 +176,9 @@ let update msg model =
         | Tick dt ->
             if model.isAnalyzing then
                 let hist = (processFrame model) |> Option.defaultValue [||] |> List.ofArray
-                let cmd = hist |> detectShot model
-                { model with lastShotHist = hist }, cmd
+                let difference, cmd = hist |> detectShot model
+                let modelWithUpdateVisBuffer = visualizeDifferences model difference
+                { modelWithUpdateVisBuffer with lastShotHist = hist }, cmd
             else
                 model, Cmd.none
 
@@ -164,4 +200,10 @@ let view model dispatch =
             R.Props.Style [R.Props.MarginLeft "10px"] ] [
             R.div [] [ R.str "Canvas not supported" ]
         ]
+        R.canvas [
+            R.Props.Id "canvas-visualizer"
+            R.Props.Width "256px"
+            R.Props.Height "100px"
+            R.Props.Style [R.Props.MarginLeft "10px"]
+        ] [ R.div [] [ R.str "Canvas not supported"] ]
     ]

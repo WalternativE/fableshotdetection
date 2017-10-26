@@ -87,7 +87,8 @@ open Elmish.HMR
 Program.mkProgram init update view
 |> Program.withSubscription subscription
 #if DEBUG
-|> Program.withDebugger
+// The app fires so many events it is just impractical to use the event debugger
+// |> Program.withDebugger
 |> Program.withHMR
 #endif
 |> Program.withReact "elmish-app"

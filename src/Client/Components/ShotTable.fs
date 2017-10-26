@@ -2,7 +2,6 @@ module App.Components.ShotTable
 
 open System
 open Elmish
-open Fable.Import
 
 type Shot = {
   id : string
@@ -17,13 +16,8 @@ type Model = {
 type Msg = 
   | AnalyzerMsg of Analyzer.Msg
 
-module R = Fable.Helpers.React
-
 let init videoId =
   { videoId = videoId; shots = [] }, Cmd.none
-
-let createShotThumb model currentShot =
-  ()
 
 let update msg model =
   match msg with
@@ -35,12 +29,11 @@ let update msg model =
           { model with shots = newShot::model.shots }, Cmd.none
       | Analyzer.StartVideoMsg | Analyzer.StopVideoMsg | Analyzer.GlobalMsg _ -> model, Cmd.none
 
-let renderShots model =
+module R = Fable.Helpers.React
+
+let view model dispatch =
   R.div [] [
     yield! model.shots
     |> Seq.map (fun shot ->
           R.img [ R.Props.Id shot.id; R.Props.Src shot.imageUri ] )
   ]
-
-let view model dispatch =
-  renderShots model
