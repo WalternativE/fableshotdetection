@@ -163,8 +163,10 @@ Target "BundleClient" (fun _ ->
         ExecProcess (fun info ->
             info.FileName <- dotnetExePath
             info.WorkingDirectory <- serverPath
-            info.Arguments <- "publish -c Release -o \"" + FullName deployDir + "\"") TimeSpan.MaxValue
+            info.Arguments <- "publish --self-contained -c Release -o \"" + FullName deployDir + "\"") TimeSpan.MaxValue
     if result <> 0 then failwith "Publish failed"
+
+    !! "src/Server/web.config" |> CopyFiles deployDir
 
     let clientDir = deployDir </> "client"
     let publicDir = clientDir </> "public"

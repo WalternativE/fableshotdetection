@@ -10,7 +10,7 @@ let GetEnvVar var =
     | value -> Some value
 
 let getPortsOrDefault defaultVal = 
-    match Environment.GetEnvironmentVariable("SUAVE_FABLE_PORT") with
+    match Environment.GetEnvironmentVariable("HTTP_PLATFORM_PORT") with
     | null -> defaultVal
     | value -> value |> uint16
 
