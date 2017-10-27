@@ -119,7 +119,7 @@ let computeDifference oldHist newHist =
     Math.Abs (computeTotalLuma oldHist - computeTotalLuma newHist)
 
 let detectShot model currentHist =
-    // TODO implement all the logic
+    // TODO implement fading logic
     let difference =
         computeDifference model.lastShotHist currentHist
 
@@ -162,6 +162,11 @@ let drawVisBuffer model =
         ctx.lineTo(255., 100. - float cutThreshPos)
         ctx.stroke()
 
+        let fadeThreshPos = clamp (float model.fadeThresh * scalingFactor) 0. 100.
+        ctx.moveTo(0., 100. - float fadeThreshPos)
+        ctx.lineTo(255., 100. - float fadeThreshPos)
+        ctx.stroke()
+
         ctx.closePath () )
     model
 
@@ -202,10 +207,17 @@ let update msg model =
             else
                 model, Cmd.none
 
-let onThreshChange (e : React.FormEvent) dispatch =
+let extractSliderEvtenValue (e : React.FormEvent) =
     let threshSlider = e.currentTarget :?> Browser.HTMLInputElement
-    let (isSuccess, value) = threshSlider.value |> Int32.TryParse
+    threshSlider.value |> Int32.TryParse
+
+let onCutThreshChange e dispatch =
+    let isSuccess, value = extractSliderEvtenValue e
     if isSuccess then ThreshUpdatedMsg (CutThresh value) |> dispatch else ()
+
+let onFadeThreshChange e dispatch =
+    let isSuccess, value = extractSliderEvtenValue e
+    if isSuccess then ThreshUpdatedMsg (FadeThresh value) |> dispatch else ()
 
 module R = Fable.Helpers.React
 
@@ -219,7 +231,16 @@ let view model dispatch =
                 R.Props.Min 1
                 R.Props.Max TMAX
                 R.Props.Value (string model.cutThresh)
-                R.Props.OnChange (fun e -> onThreshChange e dispatch )
+                R.Props.OnChange (fun e -> onCutThreshChange e dispatch )
+            ]
+            R.label [ R.Props.HtmlFor "fade-thresh-slider" ] [ R.str (sprintf "FadeThresh at %i" model.fadeThresh) ]
+            R.input [
+                R.Props.Id "fade-thresh-slider"
+                R.Props.Type "range"
+                R.Props.Min 1
+                R.Props.Max TMAX
+                R.Props.Value (string model.fadeThresh)
+                R.Props.OnChange (fun e -> onFadeThreshChange e dispatch )
             ]
         ]
         R.div [] [
