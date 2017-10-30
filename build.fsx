@@ -81,6 +81,18 @@ do if not isWindows then
     let frameworkPath = IO.Path.GetDirectoryName(mono) </> ".." </> "lib" </> "mono" </> "4.5"
     setEnvironVar "FrameworkPathOverride" frameworkPath
 
+// ----------------------
+// Platform Test Target
+
+Target "ShowPlatform" (fun _ ->
+  if isWindows then
+    trace "You are on a Windows Box"
+
+  if isUnix then
+    trace "You are on a *Nix Box"
+  else
+    trace "Don't know which box you are on"
+)
 
 // --------------------------------------------------------------------------------------
 // Clean build results
@@ -158,12 +170,18 @@ Target "Run" (fun _ ->
 // --------------------------------------------------------------------------------------
 // Release Scripts
 
+let publishCmd =
+  if isWindows then
+    "publish --runtime win-x86 --self-contained"
+  else
+    "publish"
+
 Target "BundleClient" (fun _ ->
     let result =
         ExecProcess (fun info ->
             info.FileName <- dotnetExePath
             info.WorkingDirectory <- serverPath
-            info.Arguments <- "publish --self-contained -c Release -o \"" + FullName deployDir + "\"") TimeSpan.MaxValue
+            info.Arguments <- publishCmd + " -c Release -o \"" + FullName deployDir + "\"") TimeSpan.MaxValue
     if result <> 0 then failwith "Publish failed"
 
     !! "src/Server/web.config" |> CopyFiles deployDir
@@ -200,6 +218,7 @@ Target "CreateDockerImage" (fun _ ->
 // -------------------------------------------------------------------------------------
 Target "Build" DoNothing
 Target "All" DoNothing
+Target "OsInfo" DoNothing
 
 "Clean"
   ==> "InstallDotNetCore"
@@ -215,5 +234,8 @@ Target "All" DoNothing
 
 "InstallClient"
   ==> "Run"
+
+"ShowPlatform"
+  ==> "OsInfo"
 
 RunTargetOrDefault "All"
