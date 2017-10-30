@@ -19,6 +19,9 @@ type Model = {
     visBuffer : int list
     cutThresh : int
     fadeThresh : int
+    visWidth : float
+    visHeight : float
+    lastFadeThreshDelta : int
 }
 
 type Thresh =
@@ -32,7 +35,9 @@ type Msg =
     | ThreshUpdatedMsg of Thresh
     | GlobalMsg of Global.Msg
 
-let init videoId =
+let init videoId visDimensions =
+    let visWidth, visHeight = defaultArg visDimensions (256., 100.)
+
     { videoId = videoId
       backingContext = None
       histContext = None
@@ -42,8 +47,11 @@ let init videoId =
       videoHeight = 0.
       lastShotHist = []
       visBuffer = []
-      cutThresh = Math.Floor (float TMAX / 3.) |> int
-      fadeThresh = Math.Floor (float TMAX / 6.) |> int }, Cmd.none
+      cutThresh = Math.Floor (TMAX / 2.5) |> int
+      fadeThresh = Math.Floor (TMAX / 8.) |> int
+      visWidth = visWidth
+      visHeight = visHeight
+      lastFadeThreshDelta = 0 }, Cmd.none
 
 let extractDrawingContext id =
     let el = (Browser.document.getElementById id) :?> Browser.HTMLCanvasElement
@@ -90,15 +98,15 @@ let drawOnCanvas = function
     | Some (model, hist) ->
         match model.histContext with
         | Some ctx ->
-            ctx.clearRect (0., 0., 256., 100.)
+            ctx.clearRect (0., 0., model.visWidth, model.visHeight)
             let max = Array.max hist
             ctx.beginPath ()
             for bucket in {0 .. 255} do
-                let scalingFactor = 100. / float max
-                let v = clamp (float hist.[bucket] * scalingFactor) 0. 100.
+                let scalingFactor = model.visHeight / float max
+                let v = clamp (float hist.[bucket] * scalingFactor) 0. model.visHeight
                 
-                ctx.moveTo (float bucket, 100.)
-                ctx.lineTo (float bucket, 100. - (float v))
+                ctx.moveTo (float bucket, model.visHeight)
+                ctx.lineTo (float bucket, model.visHeight - (float v))
                 ctx.stroke ()
             ctx.closePath ()
             Some hist
@@ -116,55 +124,67 @@ let computeTotalLuma (hist : int list) =
     start hist 0 0
 
 let computeDifference oldHist newHist =
-    Math.Abs (computeTotalLuma oldHist - computeTotalLuma newHist)
+    let unclamped = Math.Abs (computeTotalLuma oldHist - computeTotalLuma newHist)
+    clamp (float unclamped) 0. TMAX
+
+let extractImage (ctx : Browser.CanvasRenderingContext2D option) =
+    ctx
+    |> Option.map (fun ctx -> (ctx.canvas.toDataURL("image/png")))
 
 let detectShot model currentHist =
-    // TODO implement fading logic
     let difference =
         computeDifference model.lastShotHist currentHist
 
     if difference > model.cutThresh then
-        let img =
-            model.backingContext
-            |> Option.map (fun ctx -> (ctx.canvas.toDataURL("image/png")))
-        difference, Cmd.ofMsg (ShotDetectedMsg img)
+        let img = extractImage model.backingContext
+        difference, Cmd.ofMsg (ShotDetectedMsg img), model
+    else if difference > model.fadeThresh then
+        let currentFadeThreshDelta = model.lastFadeThreshDelta + (difference - model.fadeThresh)
+        let adjustedModel = { model with lastFadeThreshDelta = currentFadeThreshDelta }
+
+        if currentFadeThreshDelta > model.cutThresh then
+            let img = extractImage model.backingContext
+            difference, Cmd.ofMsg (ShotDetectedMsg img), adjustedModel
+        else
+            difference, Cmd.none, adjustedModel
     else
-        difference, Cmd.none
+        // a fade should be continuous - if it is not reset the delta to zero
+        difference, Cmd.none, { model with lastFadeThreshDelta = 0 }
 
 let processVisBuffer model difference =
-    if List.length model.visBuffer < 256 then
+    if List.length model.visBuffer < (int model.visWidth) then
         { model with visBuffer = difference::model.visBuffer }
     else
-        let head = model.visBuffer |> List.take 255
+        let head = model.visBuffer |> List.take (int model.visWidth - 1)
         { model with visBuffer = difference::head }
 
 let drawVisBuffer model =
     model.visualizerContext
     |> Option.iter (fun ctx ->
-        let scalingFactor = 100. / float TMAX
+        let scalingFactor = model.visHeight / TMAX
 
         let rec draw toDraw pos =
             match toDraw with
             | [] -> ()
             | x::rest ->
-                let v = clamp (float x * scalingFactor) 0. 100.
-                ctx.moveTo(float pos, 100.)
-                ctx.lineTo(float pos, 100. - float v)
+                let v = clamp (float x * scalingFactor) 0. model.visHeight
+                ctx.moveTo(float pos, model.visHeight)
+                ctx.lineTo(float pos, model.visHeight - float v)
                 ctx.stroke()
                 pos - 1 |> draw rest
         
-        ctx.clearRect(0., 0., 256., 100.)
+        ctx.clearRect(0., 0., model.visWidth, model.visHeight)
         ctx.beginPath ()
-        draw model.visBuffer 255
+        draw model.visBuffer (int model.visWidth - 1)
 
-        let cutThreshPos = clamp (float model.cutThresh * scalingFactor) 0. 100.
-        ctx.moveTo(0., 100. - float cutThreshPos)
-        ctx.lineTo(255., 100. - float cutThreshPos)
+        let cutThreshPos = clamp (float model.cutThresh * scalingFactor) 0. model.visHeight
+        ctx.moveTo(0., model.visHeight - float cutThreshPos)
+        ctx.lineTo(model.visWidth, model.visHeight - float cutThreshPos)
         ctx.stroke()
 
-        let fadeThreshPos = clamp (float model.fadeThresh * scalingFactor) 0. 100.
-        ctx.moveTo(0., 100. - float fadeThreshPos)
-        ctx.lineTo(255., 100. - float fadeThreshPos)
+        let fadeThreshPos = clamp (float model.fadeThresh * scalingFactor) 0. model.visHeight
+        ctx.moveTo(0., model.visHeight - float fadeThreshPos)
+        ctx.lineTo(model.visWidth, model.visHeight - float fadeThreshPos)
         ctx.stroke()
 
         ctx.closePath () )
@@ -191,18 +211,20 @@ let update msg model =
         Browser.console.log "Stopping video"
         { model with isAnalyzing = false }, Cmd.none
     | ShotDetectedMsg _ ->
-        model, Cmd.none
+        let modelWithResetFadeDelta = { model with lastFadeThreshDelta = 0 }
+        modelWithResetFadeDelta, Cmd.none
     | ThreshUpdatedMsg thresh ->
         match thresh with
         | CutThresh v -> { model with cutThresh = v }, Cmd.none
         | FadeThresh v -> { model with fadeThresh = v }, Cmd.none
     | GlobalMsg msg ->
         match msg with
-        | Tick dt ->
+        | Tick _ ->
             if model.isAnalyzing then
+                // TODO if I ever have time - this block is rather ugly from a functional perspective an I should refactor it
                 let hist = (processFrame model) |> Option.defaultValue [||] |> List.ofArray
-                let difference, cmd = hist |> detectShot model
-                let modelWithUpdateVisBuffer = visualizeDifferences model difference
+                let difference, cmd, modelWithNewFadeThreshDelta = hist |> detectShot model
+                let modelWithUpdateVisBuffer = visualizeDifferences modelWithNewFadeThreshDelta difference
                 { modelWithUpdateVisBuffer with lastShotHist = hist }, cmd
             else
                 model, Cmd.none
@@ -223,7 +245,7 @@ module R = Fable.Helpers.React
 
 let view model dispatch =
     R.div [ R.Props.Style [R.Props.Display "inline-block"] ] [
-        R.div [] [
+        R.div [ R.Props.Style [ R.Props.MarginLeft "10px" ] ] [
             R.label [ R.Props.HtmlFor "cut-thresh-slider" ] [ R.str (sprintf "CutThresh at %i" model.cutThresh) ]
             R.input [
                 R.Props.Id "cut-thresh-slider"
@@ -242,6 +264,7 @@ let view model dispatch =
                 R.Props.Value (string model.fadeThresh)
                 R.Props.OnChange (fun e -> onFadeThreshChange e dispatch )
             ]
+            R.div [] [ R.span [] [R.str (sprintf "Accumulated fade threshold delta: %i" model.lastFadeThreshDelta)] ]
         ]
         R.div [] [
             R.canvas [
@@ -252,14 +275,14 @@ let view model dispatch =
             ] [ R.div [] [ R.str "Canvas not supported" ] ]
             R.canvas [
                 R.Props.Id "canvas-hist"
-                R.Props.Width "256px"
-                R.Props.Height "100px"
+                R.Props.Width "256px" // I really don't want to support anything else than line histograms now
+                R.Props.Height model.visHeight
                 R.Props.Style [R.Props.MarginLeft "10px"]
             ] [ R.div [] [ R.str "Canvas not supported" ] ]
             R.canvas [
                 R.Props.Id "canvas-visualizer"
-                R.Props.Width "256px"
-                R.Props.Height "100px"
+                R.Props.Width model.visWidth
+                R.Props.Height model.visHeight
                 R.Props.Style [R.Props.MarginLeft "10px"]
             ] [ R.div [] [ R.str "Canvas not supported"] ]
         ]

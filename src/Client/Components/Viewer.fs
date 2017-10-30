@@ -17,8 +17,10 @@ type Msg =
     | AnalyzerMsg of Analyzer.Msg
     | GlobalMsg of Global.Msg
 
+let visDimensions = Some (300., 200.)
+
 let init videoId videoOptions =
-    let analyzer, analyzerCmd = Analyzer.init videoId
+    let analyzer, analyzerCmd = Analyzer.init videoId visDimensions
     { videoId = videoId
       options = videoOptions
       selected = List.head videoOptions
@@ -28,7 +30,7 @@ let update msg model =
     match msg with
     | SelectVideoMsg vidUrl -> { model with selected = vidUrl }, Cmd.ofMsg ResetVideoMsg
     | ResetVideoMsg ->
-        let a, aCmd = Analyzer.init model.videoId
+        let a, aCmd = Analyzer.init model.videoId visDimensions
         { model with analyzer = a }, aCmd
     | GlobalMsg msg ->
         match msg with

@@ -39,7 +39,7 @@ let ticker dispatch =
 
 let subscription _ = Cmd.ofSub ticker
 
-let init result =
+let init _ =
   let videoId = "player"
   let viewer, viewerCmd = Viewer.init videoId videoChoices
   let shotTable, stCmd = ShotTable.init videoId
@@ -84,7 +84,6 @@ let view model dispatch =
   ]
 
 open Elmish.React
-open Elmish.Debug
 open Elmish.HMR
 
 // App

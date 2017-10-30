@@ -9,14 +9,6 @@ open Fake
 open System
 open System.IO
 
-let project = "Suave/Fable sample"
-
-let summary = "Suave and Fable sample"
-
-let description = summary
-
-let configuration = "Release"
-
 let clientPath = "./src/Client" |> FullName
 
 let serverPath = "./src/Server/" |> FullName
@@ -38,8 +30,8 @@ let mutable dotnetExePath = "dotnet"
 let deployDir = "./deploy"
 
 let dockerUser = getBuildParam "DockerUser"
-let dockerPassword = getBuildParam "DockerPassword"
-let dockerLoginServer = getBuildParam "DockerLoginServer"
+// let dockerPassword = getBuildParam "DockerPassword"
+// let dockerLoginServer = getBuildParam "DockerLoginServer"
 let dockerImageName = getBuildParam "DockerImageName"
 
 // --------------------------------------------------------------------------------------

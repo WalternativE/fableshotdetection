@@ -31,7 +31,7 @@ let update msg model =
 
 module R = Fable.Helpers.React
 
-let view model dispatch =
+let view model _ =
   R.div [] [
     yield! model.shots
     |> Seq.map (fun shot ->
